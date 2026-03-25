@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling>=1.5.0", "jupyterlab>=4.0.0,<5", "hatch-nodejs-version>=0.3.2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jupyterlab-b2"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+description = "JupyterLab extension for Backblaze B2 Cloud Storage — sidebar file browser and REST API"
+dynamic = ["version"]
+authors = [
+    { name = "Gonzalo Peña-Castellanos", email = "goanpeca@gmail.com" },
+]
+keywords = [
+    "backblaze",
+    "b2",
+    "cloud-storage",
+    "jupyter",
+    "jupyterlab",
+    "jupyterlab-extension",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Jupyter",
+    "Framework :: Jupyter :: JupyterLab",
+    "Framework :: Jupyter :: JupyterLab :: 4",
+    "Framework :: Jupyter :: JupyterLab :: Extensions",
+    "Framework :: Jupyter :: JupyterLab :: Extensions :: Prebuilt",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "jupyter-server>=2.0.0",
+    "b2sdk>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "jupyterlab>=4.0.0,<5",
+]
+
+[project.urls]
+Homepage = "https://github.com/backblaze-b2-samples/jupyterlab-b2"
+Repository = "https://github.com/backblaze-b2-samples/jupyterlab-b2"
+
+[tool.hatch.version]
+source = "nodejs"
+
+[tool.hatch.metadata.hooks.nodejs]
+fields = ["description", "authors", "urls"]
+
+[tool.hatch.build.targets.sdist]
+artifacts = ["jupyterlab_b2/labextension"]
+exclude = [".github", "node_modules", "*.tgz"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"jupyterlab_b2/labextension" = "share/jupyter/labextensions/jupyterlab-b2"
+"install.json" = "share/jupyter/labextensions/jupyterlab-b2/install.json"
+"jupyter-config/server-config" = "etc/jupyter/jupyter_server_config.d"
+
+[tool.jupyter-releaser.options]
+version_cmd = "hatch version"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "D"]
+ignore = ["D100", "D104"]
+
+[tool.ruff.lint.per-file-ignores]
+"jupyterlab_b2/tests/**/*.py" = ["D102", "D103"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.pytest.ini_options]
+testpaths = ["jupyterlab_b2/tests"]
+addopts = "-v --cov=jupyterlab_b2 --cov-report=term-missing"

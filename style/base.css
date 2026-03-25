@@ -1,0 +1,343 @@
+/* B2 JupyterLab Extension — Sidebar Styles */
+
+/*
+ * Bucket icon for root-level directories in the B2 file browser.
+ * At root level, each "folder" is actually a B2 bucket.
+ *
+ * DOM structure (from inspect):
+ *   <span class="jp-DirListing-itemIcon ...">
+ *     <svg data-icon="ui-components:folder">
+ *       <path class="jp-icon3 jp-icon-selectable" d="M10 4H4c..."/>
+ *     </svg>
+ *   </span>
+ *
+ * We replace the folder path with a bucket shape path.
+ */
+
+/* Hide the default folder SVG path at root level */
+#jupyterlab-b2-browser[data-b2-root='true']
+  .jp-DirListing-item[data-isdir='true']
+  .jp-DirListing-itemIcon
+  svg[data-icon='ui-components:folder'] {
+  display: none !important;
+}
+
+/* Show bucket icon as background on the icon span — grey for unselected */
+#jupyterlab-b2-browser[data-b2-root='true']
+  .jp-DirListing-item[data-isdir='true']
+  .jp-DirListing-itemIcon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' viewBox='0 0 24 24'%3E%3Cpath fill='%23616161' d='M5 8h14l-1.5 11H6.5L5 8Z'/%3E%3Cellipse cx='12' cy='6.5' rx='8' ry='1.5' fill='none' stroke='%23616161' stroke-width='1.5'/%3E%3C/svg%3E") !important;
+  background-size: 16px 16px !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
+  display: inline-block !important;
+}
+
+/* White bucket icon when selected (matching JupyterLab's folder icon behavior) */
+#jupyterlab-b2-browser[data-b2-root='true']
+  .jp-DirListing-item.jp-mod-selected[data-isdir='true']
+  .jp-DirListing-itemIcon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M5 8h14l-1.5 11H6.5L5 8Z'/%3E%3Cellipse cx='12' cy='6.5' rx='8' ry='1.5' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") !important;
+}
+
+/*
+ * Context menu filtering when B2 file browser is active.
+ * Hide everything that doesn't apply to B2 cloud storage.
+ * Keep only: New Folder (becomes "Create Bucket" at root), Delete, Rename.
+ */
+body.b2-browser-active .lm-Menu-item[data-command='filebrowser:create-new-directory'],
+body.b2-browser-active .lm-Menu-item[data-command='filebrowser:create-new-file'],
+body.b2-browser-active .lm-Menu-item[data-command='fileeditor:create-new'],
+body.b2-browser-active .lm-Menu-item[data-command='fileeditor:create-new-python-file'],
+body.b2-browser-active .lm-Menu-item[data-command='fileeditor:create-new-r-file'],
+body.b2-browser-active .lm-Menu-item[data-command='fileeditor:create-new-markdown-file'],
+body.b2-browser-active .lm-Menu-item[data-command='notebook:create-new'],
+body.b2-browser-active .lm-Menu-item[data-command='filebrowser:paste'],
+body.b2-browser-active .lm-Menu-item[data-command='filebrowser:copy-path'],
+body.b2-browser-active .lm-Menu-item[data-command='filebrowser:copy'],
+body.b2-browser-active .lm-Menu-item[data-command='filebrowser:cut'],
+body.b2-browser-active .lm-Menu-item[data-command='filebrowser:duplicate'],
+body.b2-browser-active .lm-Menu-item[data-command='filebrowser:share-main'],
+body.b2-browser-active .lm-Menu-item[data-command='filebrowser:copy-download-link'],
+body.b2-browser-active .lm-Menu-item[data-command='docmanager:open-browser-tab'],
+body.b2-browser-active .lm-Menu-item[data-command='filebrowser:delete'] {
+  display: none !important;
+}
+
+/* Upload status indicator animation */
+@keyframes b2-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.b2-upload-status {
+  transition: all 0.3s ease;
+}
+
+.b2-browser-widget {
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+.b2-panel {
+  padding: 12px;
+}
+
+.b2-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--jp-border-color1);
+}
+
+.b2-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.b2-subtitle {
+  margin: 0;
+  font-size: 11px;
+  color: var(--jp-ui-font-color2);
+}
+
+/* Auth form */
+.b2-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.b2-auth-form label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--jp-ui-font-color1);
+  margin-top: 4px;
+}
+
+.b2-input {
+  padding: 6px 8px;
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 4px;
+  background: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color0);
+  font-size: 12px;
+  font-family: var(--jp-code-font-family);
+}
+
+.b2-input:focus {
+  outline: none;
+  border-color: var(--jp-brand-color1);
+  box-shadow: 0 0 0 2px var(--jp-brand-color3);
+}
+
+.b2-hint {
+  font-size: 10px;
+  color: var(--jp-ui-font-color2);
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+.b2-hint code {
+  font-size: 10px;
+  background: var(--jp-layout-color2);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+/* Buttons */
+.b2-btn {
+  cursor: pointer;
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 4px;
+  background: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color0);
+  font-size: 12px;
+  padding: 6px 12px;
+  transition: background 0.15s;
+}
+
+.b2-btn:hover {
+  background: var(--jp-layout-color2);
+}
+
+.b2-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.b2-btn-primary {
+  background: var(--jp-brand-color1);
+  color: white;
+  border-color: var(--jp-brand-color1);
+}
+
+.b2-btn-primary:hover {
+  background: var(--jp-brand-color0);
+}
+
+.b2-btn-sm {
+  padding: 3px 8px;
+  font-size: 14px;
+  line-height: 1;
+  min-width: 28px;
+  text-align: center;
+}
+
+.b2-btn-xs {
+  padding: 2px 6px;
+  font-size: 12px;
+  line-height: 1;
+  border: none;
+  background: transparent;
+}
+
+.b2-btn-xs:hover {
+  background: var(--jp-layout-color2);
+  border-radius: 3px;
+}
+
+/* List items */
+.b2-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.b2-list-item:hover {
+  background: var(--jp-layout-color2);
+}
+
+.b2-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.b2-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.b2-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--jp-layout-color3);
+  color: var(--jp-ui-font-color2);
+  white-space: nowrap;
+}
+
+/* File item specifics */
+.b2-file-item {
+  align-items: flex-start;
+}
+
+.b2-file-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.b2-meta {
+  font-size: 10px;
+  color: var(--jp-ui-font-color2);
+}
+
+.b2-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.b2-file-item:hover .b2-actions {
+  opacity: 1;
+}
+
+/* Breadcrumbs */
+.b2-breadcrumbs {
+  flex: 1;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.b2-breadcrumb-item {
+  cursor: pointer;
+  color: var(--jp-brand-color1);
+}
+
+.b2-breadcrumb-item:hover {
+  text-decoration: underline;
+}
+
+.b2-breadcrumb-item:last-child {
+  color: var(--jp-ui-font-color0);
+  font-weight: 600;
+  cursor: default;
+}
+
+.b2-breadcrumb-item:last-child:hover {
+  text-decoration: none;
+}
+
+/* Status messages */
+.b2-loading {
+  text-align: center;
+  padding: 20px;
+  color: var(--jp-ui-font-color2);
+}
+
+.b2-empty {
+  text-align: center;
+  padding: 20px;
+  color: var(--jp-ui-font-color2);
+  font-style: italic;
+}
+
+.b2-error {
+  color: var(--jp-error-color1);
+  font-size: 12px;
+}
+
+.b2-status-msg {
+  min-height: 18px;
+  font-size: 12px;
+}
+
+/* Action bar */
+.b2-action-bar {
+  padding: 8px 0;
+  margin-top: 8px;
+  border-top: 1px solid var(--jp-border-color2);
+  display: flex;
+  gap: 6px;
+}
+
+.b2-btn-full {
+  width: 100%;
+  text-align: center;
+}

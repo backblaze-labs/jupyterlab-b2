@@ -1,22 +1,48 @@
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
 dist/
 build/
 .eggs/
+*.egg
+
+# TypeScript / JupyterLab
 lib/
 node_modules/
 *.tgz
-b2_jlab/labextension/
 *.js.map
 tsconfig.tsbuildinfo
+jupyterlab_b2/labextension/
+
+# Yarn (using node-modules linker, not PnP zero-installs)
+.yarn/cache/
+.yarn/install-state.gz
+.pnp.*
+
+# Linting / formatting caches
 .eslintcache
 .stylelintcache
 .mypy_cache/
 .ruff_cache/
+
+# Testing
 .pytest_cache/
 .coverage
-*.ipynb_checkpoints
+coverage.xml
+htmlcov/
+
+# Docs (generated from source)
+docs/
+
+# IDE / OS
 .venv/
+venv/
 .env
 .DS_Store
+*.ipynb_checkpoints
+.idea/
+.vscode/
+*.swp
+*.swo

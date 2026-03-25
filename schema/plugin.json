@@ -1,0 +1,22 @@
+{
+  "jupyter.lab.setting-icon": "jupyterlab-b2:icon",
+  "jupyter.lab.setting-icon-label": "Backblaze B2",
+  "title": "Backblaze B2",
+  "description": "Settings for the Backblaze B2 Cloud Storage extension",
+  "type": "object",
+  "properties": {
+    "defaultBucket": {
+      "type": "string",
+      "title": "Default Bucket",
+      "description": "Default bucket to open on start (leave empty for bucket list)",
+      "default": ""
+    },
+    "showHiddenFiles": {
+      "type": "boolean",
+      "title": "Show Hidden Files",
+      "description": "Show files starting with a dot",
+      "default": false
+    }
+  },
+  "additionalProperties": false
+}

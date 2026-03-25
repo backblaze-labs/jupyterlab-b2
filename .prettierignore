@@ -1,0 +1,8 @@
+node_modules/
+lib/
+jupyterlab_b2/labextension/
+.yarn/
+*.egg-info/
+dist/
+docs/
+coverage/
