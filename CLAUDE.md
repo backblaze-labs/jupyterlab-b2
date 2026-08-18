@@ -68,6 +68,18 @@ jlpm watch
 jupyter lab --no-browser
 ```
 
+## Continuous Integration
+
+CI (`.github/workflows/ci.yml`) runs on pushes to `main` and PRs targeting
+`main`: `lint` (ruff), `ts-lint` (eslint + prettier), `test` (pytest across the
+OS/Python matrix), and `build`.
+
+**Dependabot PRs never run CI.** Every job is gated on
+`github.event.pull_request.user.login != 'dependabot[bot]' && !startsWith(github.head_ref, 'dependabot/')`
+(the `build` job also keeps `success()`), so dependency-bump PRs show all checks
+as skipped. Merge them manually or via auto-merge; the post-merge push to `main`
+runs the full suite.
+
 ## Code Conventions
 
 - Python 3.10+ required
