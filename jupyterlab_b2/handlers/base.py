@@ -166,17 +166,9 @@ class B2BaseHandler(APIHandler):
             return {}
 
     @classmethod
-    def _sanitize_response(cls, value: Any) -> Any:
-        """Escape string values before serializing API responses."""
-        if isinstance(value, str):
-            return html.escape(value, quote=True)
-        if isinstance(value, dict):
-            return {key: cls._sanitize_response(item) for key, item in value.items()}
-        if isinstance(value, list):
-            return [cls._sanitize_response(item) for item in value]
-        if isinstance(value, tuple):
-            return tuple(cls._sanitize_response(item) for item in value)
-        return value
+    def _sanitize_message(cls, value: Any) -> str:
+        """Escape a human-readable response message."""
+        return html.escape(str(value), quote=True)
 
     def success(self, data: Any = None, message: str = "ok") -> None:
         """Write a success JSON response.
@@ -193,8 +185,8 @@ class B2BaseHandler(APIHandler):
             json.dumps(
                 {
                     "status": "ok",
-                    "message": B2BaseHandler._sanitize_response(message),
-                    "data": B2BaseHandler._sanitize_response(data),
+                    "message": B2BaseHandler._sanitize_message(message),
+                    "data": data,
                 }
             )
         )
@@ -210,7 +202,7 @@ class B2BaseHandler(APIHandler):
         status : int, optional
             HTTP status code (default 400).
         """
-        response_message = message
+        response_message = B2BaseHandler._sanitize_message(message)
         if status >= 500:
             logger.error(
                 "Internal server error: %s",
@@ -225,8 +217,21 @@ class B2BaseHandler(APIHandler):
             json.dumps(
                 {
                     "status": "error",
-                    "message": B2BaseHandler._sanitize_response(response_message),
+                    "message": response_message,
                 }
             )
         )
         self.finish()
+
+    def exception(
+        self,
+        error: Exception,
+        status: int = 500,
+        message: str = "Request failed.",
+    ) -> None:
+        """Log an exception and return a generic error response."""
+        logger.error(
+            "B2 handler request failed",
+            exc_info=(type(error), error, error.__traceback__),
+        )
+        B2BaseHandler.error(self, message, status=status)

@@ -331,7 +331,7 @@ class TestBaseHandlerHelpers:
         parsed = json.loads(written)
         assert parsed["status"] == "ok"
         assert parsed["message"] == "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;"
-        assert parsed["data"] == {"buckets": ["&lt;bucket&gt;"]}
+        assert parsed["data"] == {"buckets": ["<bucket>"]}
 
     def test_error_response(self):
         handler = MagicMock(spec=B2BaseHandler)
@@ -349,6 +349,15 @@ class TestBaseHandlerHelpers:
         written = handler.write.call_args[0][0]
         parsed = json.loads(written)
         assert parsed["message"] == "&lt;bad request&gt;"
+
+    def test_exception_response_hides_exception_details(self):
+        handler = MagicMock(spec=B2BaseHandler)
+        B2BaseHandler.exception(handler, RuntimeError("secret traceback details"))
+
+        handler.set_status.assert_called_with(500)
+        written = handler.write.call_args[0][0]
+        parsed = json.loads(written)
+        assert parsed["message"] == "An internal error has occurred."
 
 
 # ---------------------------------------------------------------------------
@@ -368,6 +377,10 @@ class TestLocalPathSafety:
         with pytest.raises(ValueError, match="outside"):
             _resolve_under(tmp_path, "../file.txt")
 
+    def test_resolve_under_rejects_non_string_path(self, tmp_path):
+        with pytest.raises(TypeError, match="string"):
+            _resolve_under(tmp_path, 123)
+
     def test_safe_bucket_cache_dir_rejects_path_separator(self, tmp_path):
         with pytest.raises(ValueError, match="Invalid bucket"):
             _safe_bucket_cache_dir(tmp_path, "../bucket")
@@ -380,6 +393,10 @@ class TestLocalPathSafety:
     def test_safe_file_key_path_rejects_parent_segments(self, tmp_path):
         with pytest.raises(ValueError, match="Invalid file"):
             _safe_file_key_path(tmp_path, "folder/../../secret.txt")
+
+    def test_safe_file_key_path_rejects_non_string_key(self, tmp_path):
+        with pytest.raises(TypeError, match="string"):
+            _safe_file_key_path(tmp_path, {"key": "file.txt"})
 
 
 # ---------------------------------------------------------------------------
