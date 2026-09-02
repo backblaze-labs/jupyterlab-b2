@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +17,11 @@ logger = logging.getLogger(__name__)
 
 # Shared B2 API instance across all handlers
 _b2_api: B2Api | None = None
+
+
+def _safe_json_dumps(value: Any) -> str:
+    """Serialize JSON without raw HTML-significant characters."""
+    return json.dumps(value).replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
 
 
 def get_b2_api() -> B2Api:
@@ -163,6 +170,11 @@ class B2BaseHandler(APIHandler):
         except json.JSONDecodeError:
             return {}
 
+    @classmethod
+    def _sanitize_message(cls, value: Any) -> str:
+        """Escape a human-readable response message."""
+        return html.escape(str(value), quote=True)
+
     def success(self, data: Any = None, message: str = "ok") -> None:
         """Write a success JSON response.
 
@@ -174,7 +186,15 @@ class B2BaseHandler(APIHandler):
             Human-readable message.
         """
         self.set_header("Content-Type", "application/json")
-        self.write(json.dumps({"status": "ok", "message": message, "data": data}))
+        self.write(
+            _safe_json_dumps(
+                {
+                    "status": "ok",
+                    "message": B2BaseHandler._sanitize_message(message),
+                    "data": data,
+                }
+            )
+        )
         self.finish()
 
     def error(self, message: str, status: int = 400) -> None:
@@ -187,7 +207,36 @@ class B2BaseHandler(APIHandler):
         status : int, optional
             HTTP status code (default 400).
         """
+        response_message = B2BaseHandler._sanitize_message(message)
+        if status >= 500:
+            logger.error(
+                "Internal server error: %s",
+                message,
+                exc_info=sys.exc_info()[0] is not None,
+            )
+            response_message = "An internal error has occurred."
+
         self.set_status(status)
         self.set_header("Content-Type", "application/json")
-        self.write(json.dumps({"status": "error", "message": message}))
+        self.write(
+            _safe_json_dumps(
+                {
+                    "status": "error",
+                    "message": response_message,
+                }
+            )
+        )
         self.finish()
+
+    def exception(
+        self,
+        error: Exception,
+        status: int = 500,
+        message: str = "Request failed.",
+    ) -> None:
+        """Log an exception and return a generic error response."""
+        logger.error(
+            "B2 handler request failed",
+            exc_info=(type(error), error, error.__traceback__),
+        )
+        B2BaseHandler.error(self, message, status=status)
