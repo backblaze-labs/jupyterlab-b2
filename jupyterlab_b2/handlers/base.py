@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -163,6 +165,19 @@ class B2BaseHandler(APIHandler):
         except json.JSONDecodeError:
             return {}
 
+    @classmethod
+    def _sanitize_response(cls, value: Any) -> Any:
+        """Escape string values before serializing API responses."""
+        if isinstance(value, str):
+            return html.escape(value, quote=True)
+        if isinstance(value, dict):
+            return {key: cls._sanitize_response(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [cls._sanitize_response(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(cls._sanitize_response(item) for item in value)
+        return value
+
     def success(self, data: Any = None, message: str = "ok") -> None:
         """Write a success JSON response.
 
@@ -174,7 +189,15 @@ class B2BaseHandler(APIHandler):
             Human-readable message.
         """
         self.set_header("Content-Type", "application/json")
-        self.write(json.dumps({"status": "ok", "message": message, "data": data}))
+        self.write(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "message": B2BaseHandler._sanitize_response(message),
+                    "data": B2BaseHandler._sanitize_response(data),
+                }
+            )
+        )
         self.finish()
 
     def error(self, message: str, status: int = 400) -> None:
@@ -187,7 +210,23 @@ class B2BaseHandler(APIHandler):
         status : int, optional
             HTTP status code (default 400).
         """
+        response_message = message
+        if status >= 500:
+            logger.error(
+                "Internal server error: %s",
+                message,
+                exc_info=sys.exc_info()[0] is not None,
+            )
+            response_message = "An internal error has occurred."
+
         self.set_status(status)
         self.set_header("Content-Type", "application/json")
-        self.write(json.dumps({"status": "error", "message": message}))
+        self.write(
+            json.dumps(
+                {
+                    "status": "error",
+                    "message": B2BaseHandler._sanitize_response(response_message),
+                }
+            )
+        )
         self.finish()

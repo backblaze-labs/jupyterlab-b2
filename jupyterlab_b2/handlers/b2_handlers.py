@@ -42,6 +42,39 @@ def _parse_b2_path(path: str) -> tuple[str, str]:
     return parts[0], parts[1]
 
 
+def _is_relative_to(path: Path, base: Path) -> bool:
+    try:
+        path.relative_to(base)
+    except ValueError:
+        return False
+    return True
+
+
+def _resolve_under(base: Path, path: str | Path) -> Path:
+    resolved_base = base.expanduser().resolve()
+    candidate = Path(path)
+    if candidate.is_absolute():
+        resolved = candidate.expanduser().resolve()
+    else:
+        resolved = (resolved_base / candidate).expanduser().resolve()
+    if not _is_relative_to(resolved, resolved_base):
+        raise ValueError("Path is outside the allowed directory")
+    return resolved
+
+
+def _safe_bucket_cache_dir(cache_root: Path, bucket_name: str) -> Path:
+    if not bucket_name or bucket_name in {".", ".."} or "/" in bucket_name or "\\" in bucket_name:
+        raise ValueError("Invalid bucket name")
+    return _resolve_under(cache_root, bucket_name)
+
+
+def _safe_file_key_path(base: Path, file_key: str) -> Path:
+    file_path = Path(file_key)
+    if file_path.is_absolute() or ".." in file_path.parts:
+        raise ValueError("Invalid file path")
+    return _resolve_under(base, file_path)
+
+
 class AuthHandler(B2BaseHandler):
     """Authenticate with B2.
 
@@ -298,8 +331,14 @@ class UploadHandler(B2BaseHandler):
             self.error("'local_path' and 'b2_path' are required")
             return
 
-        local = Path(local_path).expanduser()
-        if not local.exists():
+        try:
+            upload_root = Path(os.environ.get("JUPYTERLAB_B2_UPLOAD_ROOT", os.getcwd()))
+            local = _resolve_under(upload_root, local_path)
+        except (OSError, ValueError):
+            self.error("Local path is outside the allowed upload directory", status=400)
+            return
+
+        if not local.exists() or not local.is_file():
             self.error(f"Local file not found: {local_path}", status=404)
             return
 
@@ -345,17 +384,25 @@ class DownloadHandler(B2BaseHandler):
             bucket_name, file_key = _parse_b2_path(b2_path)
             if not local_path:
                 local_path = file_key.split("/")[-1]
+            download_root = Path(
+                os.environ.get(
+                    "JUPYTERLAB_B2_DOWNLOAD_ROOT",
+                    Path(os.getcwd()) / "b2_downloads",
+                )
+            )
+            target_path = _resolve_under(download_root, local_path)
+            target_path.parent.mkdir(parents=True, exist_ok=True)
 
             api = get_b2_api()
             bucket = api.get_bucket_by_name(bucket_name)
             downloaded = bucket.download_file_by_name(file_key)
-            downloaded.save_to(local_path)
+            downloaded.save_to(str(target_path))
 
             self.success(
                 data={
                     "file_name": file_key,
-                    "local_path": local_path,
-                    "size": Path(local_path).stat().st_size,
+                    "local_path": str(target_path),
+                    "size": target_path.stat().st_size,
                 }
             )
         except Exception as e:
@@ -488,13 +535,12 @@ class OpenHandler(B2BaseHandler):
             bucket_name, file_key = _parse_b2_path(path)
             file_name = file_key.split("/")[-1]
 
-            # Download to .b2-cache/ in the Jupyter working directory
-            cache_dir = Path(".b2-cache") / bucket_name
+            cache_root = Path(".b2-cache").resolve()
+            cache_dir = _safe_bucket_cache_dir(cache_root, bucket_name)
             cache_dir.mkdir(parents=True, exist_ok=True)
 
             # Preserve subdirectory structure
-            sub_path = Path(file_key)
-            local_path = cache_dir / sub_path
+            local_path = _safe_file_key_path(cache_dir, file_key)
             local_path.parent.mkdir(parents=True, exist_ok=True)
 
             api = get_b2_api()
