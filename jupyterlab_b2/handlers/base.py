@@ -21,12 +21,7 @@ _b2_api: B2Api | None = None
 
 def _safe_json_dumps(value: Any) -> str:
     """Serialize JSON without raw HTML-significant characters."""
-    return (
-        json.dumps(value)
-        .replace("&", "\\u0026")
-        .replace("<", "\\u003c")
-        .replace(">", "\\u003e")
-    )
+    return json.dumps(value).replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
 
 
 def get_b2_api() -> B2Api:
