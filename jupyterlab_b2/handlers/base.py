@@ -19,6 +19,16 @@ logger = logging.getLogger(__name__)
 _b2_api: B2Api | None = None
 
 
+def _safe_json_dumps(value: Any) -> str:
+    """Serialize JSON without raw HTML-significant characters."""
+    return (
+        json.dumps(value)
+        .replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+    )
+
+
 def get_b2_api() -> B2Api:
     """Get the shared authenticated B2Api instance.
 
@@ -182,7 +192,7 @@ class B2BaseHandler(APIHandler):
         """
         self.set_header("Content-Type", "application/json")
         self.write(
-            json.dumps(
+            _safe_json_dumps(
                 {
                     "status": "ok",
                     "message": B2BaseHandler._sanitize_message(message),
@@ -214,7 +224,7 @@ class B2BaseHandler(APIHandler):
         self.set_status(status)
         self.set_header("Content-Type", "application/json")
         self.write(
-            json.dumps(
+            _safe_json_dumps(
                 {
                     "status": "error",
                     "message": response_message,

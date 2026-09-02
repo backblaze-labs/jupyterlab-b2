@@ -17,6 +17,7 @@ from jupyterlab_b2.handlers.b2_handlers import (
 )
 from jupyterlab_b2.handlers.base import (
     B2BaseHandler,
+    _safe_json_dumps,
     get_b2_api,
     is_authenticated,
     set_b2_api,
@@ -332,6 +333,7 @@ class TestBaseHandlerHelpers:
         assert parsed["status"] == "ok"
         assert parsed["message"] == "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;"
         assert parsed["data"] == {"buckets": ["<bucket>"]}
+        assert "<bucket>" not in written
 
     def test_error_response(self):
         handler = MagicMock(spec=B2BaseHandler)
@@ -358,6 +360,12 @@ class TestBaseHandlerHelpers:
         written = handler.write.call_args[0][0]
         parsed = json.loads(written)
         assert parsed["message"] == "An internal error has occurred."
+
+    def test_safe_json_dumps_preserves_parsed_values_without_raw_html(self):
+        written = _safe_json_dumps({"value": "<bucket&key>"})
+
+        assert json.loads(written) == {"value": "<bucket&key>"}
+        assert "<bucket&key>" not in written
 
 
 # ---------------------------------------------------------------------------
