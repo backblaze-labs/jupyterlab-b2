@@ -9,9 +9,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import jupyterlab_b2.handlers.base as base_module
-from jupyterlab_b2.handlers.b2_handlers import _parse_b2_path
+from jupyterlab_b2.handlers.b2_handlers import (
+    _parse_b2_path,
+    _resolve_under,
+    _safe_bucket_cache_dir,
+    _safe_file_key_path,
+)
 from jupyterlab_b2.handlers.base import (
     B2BaseHandler,
+    _safe_json_dumps,
     get_b2_api,
     is_authenticated,
     set_b2_api,
@@ -316,12 +322,18 @@ class TestBaseHandlerHelpers:
 
     def test_success_response(self):
         handler = MagicMock(spec=B2BaseHandler)
-        B2BaseHandler.success(handler, data={"buckets": []}, message="ok")
+        B2BaseHandler.success(
+            handler,
+            data={"buckets": ["<bucket>"]},
+            message='<script>alert("x")</script>',
+        )
         handler.set_header.assert_called_with("Content-Type", "application/json")
         written = handler.write.call_args[0][0]
         parsed = json.loads(written)
         assert parsed["status"] == "ok"
-        assert parsed["data"] == {"buckets": []}
+        assert parsed["message"] == "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;"
+        assert parsed["data"] == {"buckets": ["<bucket>"]}
+        assert "<bucket>" not in written
 
     def test_error_response(self):
         handler = MagicMock(spec=B2BaseHandler)
@@ -330,12 +342,69 @@ class TestBaseHandlerHelpers:
         written = handler.write.call_args[0][0]
         parsed = json.loads(written)
         assert parsed["status"] == "error"
-        assert parsed["message"] == "something broke"
+        assert parsed["message"] == "An internal error has occurred."
 
     def test_error_default_status_400(self):
         handler = MagicMock(spec=B2BaseHandler)
-        B2BaseHandler.error(handler, "bad request")
+        B2BaseHandler.error(handler, "<bad request>")
         handler.set_status.assert_called_with(400)
+        written = handler.write.call_args[0][0]
+        parsed = json.loads(written)
+        assert parsed["message"] == "&lt;bad request&gt;"
+
+    def test_exception_response_hides_exception_details(self):
+        handler = MagicMock(spec=B2BaseHandler)
+        B2BaseHandler.exception(handler, RuntimeError("secret traceback details"))
+
+        handler.set_status.assert_called_with(500)
+        written = handler.write.call_args[0][0]
+        parsed = json.loads(written)
+        assert parsed["message"] == "An internal error has occurred."
+
+    def test_safe_json_dumps_preserves_parsed_values_without_raw_html(self):
+        written = _safe_json_dumps({"value": "<bucket&key>"})
+
+        assert json.loads(written) == {"value": "<bucket&key>"}
+        assert "<bucket&key>" not in written
+
+
+# ---------------------------------------------------------------------------
+# Local path safety
+# ---------------------------------------------------------------------------
+
+
+class TestLocalPathSafety:
+    """Tests for filesystem containment helpers."""
+
+    def test_resolve_under_allows_relative_path(self, tmp_path):
+        target = _resolve_under(tmp_path, "folder/file.txt")
+
+        assert target == tmp_path / "folder" / "file.txt"
+
+    def test_resolve_under_rejects_traversal(self, tmp_path):
+        with pytest.raises(ValueError, match="outside"):
+            _resolve_under(tmp_path, "../file.txt")
+
+    def test_resolve_under_rejects_non_string_path(self, tmp_path):
+        with pytest.raises(TypeError, match="string"):
+            _resolve_under(tmp_path, 123)
+
+    def test_safe_bucket_cache_dir_rejects_path_separator(self, tmp_path):
+        with pytest.raises(ValueError, match="Invalid bucket"):
+            _safe_bucket_cache_dir(tmp_path, "../bucket")
+
+    def test_safe_file_key_path_allows_nested_keys(self, tmp_path):
+        target = _safe_file_key_path(tmp_path, "folder/file.txt")
+
+        assert target == tmp_path / "folder" / "file.txt"
+
+    def test_safe_file_key_path_rejects_parent_segments(self, tmp_path):
+        with pytest.raises(ValueError, match="Invalid file"):
+            _safe_file_key_path(tmp_path, "folder/../../secret.txt")
+
+    def test_safe_file_key_path_rejects_non_string_key(self, tmp_path):
+        with pytest.raises(TypeError, match="string"):
+            _safe_file_key_path(tmp_path, {"key": "file.txt"})
 
 
 # ---------------------------------------------------------------------------

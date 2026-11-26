@@ -42,6 +42,45 @@ def _parse_b2_path(path: str) -> tuple[str, str]:
     return parts[0], parts[1]
 
 
+def _is_relative_to(path: Path, base: Path) -> bool:
+    try:
+        path.relative_to(base)
+    except ValueError:
+        return False
+    return True
+
+
+def _resolve_under(base: Path, path: str | Path) -> Path:
+    if not isinstance(path, str | Path):
+        raise TypeError("Path must be a string")
+    resolved_base = base.expanduser().resolve()
+    candidate = Path(path)
+    if candidate.is_absolute():
+        resolved = candidate.expanduser().resolve()
+    else:
+        resolved = (resolved_base / candidate).expanduser().resolve()
+    if not _is_relative_to(resolved, resolved_base):
+        raise ValueError("Path is outside the allowed directory")
+    return resolved
+
+
+def _safe_bucket_cache_dir(cache_root: Path, bucket_name: str) -> Path:
+    if not isinstance(bucket_name, str):
+        raise TypeError("Bucket name must be a string")
+    if not bucket_name or bucket_name in {".", ".."} or "/" in bucket_name or "\\" in bucket_name:
+        raise ValueError("Invalid bucket name")
+    return _resolve_under(cache_root, bucket_name)
+
+
+def _safe_file_key_path(base: Path, file_key: str) -> Path:
+    if not isinstance(file_key, str):
+        raise TypeError("File key must be a string")
+    file_path = Path(file_key)
+    if file_path.is_absolute() or ".." in file_path.parts:
+        raise ValueError("Invalid file path")
+    return _resolve_under(base, file_path)
+
+
 class AuthHandler(B2BaseHandler):
     """Authenticate with B2.
 
@@ -73,7 +112,7 @@ class AuthHandler(B2BaseHandler):
                 message="Authenticated successfully",
             )
         except Exception as e:
-            self.error(f"Authentication failed: {e}", status=401)
+            self.exception(e, status=401, message="Authentication failed.")
 
 
 class StatusHandler(B2BaseHandler):
@@ -113,7 +152,7 @@ class BucketsHandler(B2BaseHandler):
             buckets = api.list_buckets()
             self.success(data=[{"name": b.name, "id": b.id_, "type": b.type_} for b in buckets])
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class BucketInfoHandler(B2BaseHandler):
@@ -160,7 +199,7 @@ class BucketInfoHandler(B2BaseHandler):
                 }
             )
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class UpdateBucketHandler(B2BaseHandler):
@@ -203,7 +242,7 @@ class UpdateBucketHandler(B2BaseHandler):
                 }
             )
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class ListFilesHandler(B2BaseHandler):
@@ -242,7 +281,7 @@ class ListFilesHandler(B2BaseHandler):
 
             self.success(data={"bucket": bucket_name, "prefix": prefix, "files": files})
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class FileInfoHandler(B2BaseHandler):
@@ -277,7 +316,7 @@ class FileInfoHandler(B2BaseHandler):
                 }
             )
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class UploadHandler(B2BaseHandler):
@@ -298,8 +337,14 @@ class UploadHandler(B2BaseHandler):
             self.error("'local_path' and 'b2_path' are required")
             return
 
-        local = Path(local_path).expanduser()
-        if not local.exists():
+        try:
+            upload_root = Path(os.environ.get("JUPYTERLAB_B2_UPLOAD_ROOT", os.getcwd()))
+            local = _resolve_under(upload_root, local_path)
+        except (OSError, TypeError, ValueError):
+            self.error("Local path is outside the allowed upload directory", status=400)
+            return
+
+        if not local.exists() or not local.is_file():
             self.error(f"Local file not found: {local_path}", status=404)
             return
 
@@ -320,7 +365,7 @@ class UploadHandler(B2BaseHandler):
                 }
             )
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class DownloadHandler(B2BaseHandler):
@@ -345,21 +390,31 @@ class DownloadHandler(B2BaseHandler):
             bucket_name, file_key = _parse_b2_path(b2_path)
             if not local_path:
                 local_path = file_key.split("/")[-1]
+            download_root = Path(
+                os.environ.get(
+                    "JUPYTERLAB_B2_DOWNLOAD_ROOT",
+                    Path(os.getcwd()) / "b2_downloads",
+                )
+            )
+            target_path = _resolve_under(download_root, local_path)
+            target_path.parent.mkdir(parents=True, exist_ok=True)
 
             api = get_b2_api()
             bucket = api.get_bucket_by_name(bucket_name)
             downloaded = bucket.download_file_by_name(file_key)
-            downloaded.save_to(local_path)
+            downloaded.save_to(str(target_path))
 
             self.success(
                 data={
                     "file_name": file_key,
-                    "local_path": local_path,
-                    "size": Path(local_path).stat().st_size,
+                    "local_path": str(target_path),
+                    "size": target_path.stat().st_size,
                 }
             )
+        except (OSError, TypeError, ValueError):
+            self.error("Local path is outside the allowed download directory", status=400)
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class LoadHandler(B2BaseHandler):
@@ -403,7 +458,7 @@ class LoadHandler(B2BaseHandler):
                 }
             )
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class PresignHandler(B2BaseHandler):
@@ -434,7 +489,7 @@ class PresignHandler(B2BaseHandler):
 
             self.success(data={"url": url, "expires_in": expires})
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class DeleteHandler(B2BaseHandler):
@@ -462,7 +517,7 @@ class DeleteHandler(B2BaseHandler):
             api.delete_file_version(fv.id_, fv.file_name)
             self.success(message=f"Deleted {path}")
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class OpenHandler(B2BaseHandler):
@@ -488,13 +543,12 @@ class OpenHandler(B2BaseHandler):
             bucket_name, file_key = _parse_b2_path(path)
             file_name = file_key.split("/")[-1]
 
-            # Download to .b2-cache/ in the Jupyter working directory
-            cache_dir = Path(".b2-cache") / bucket_name
+            cache_root = Path(".b2-cache").resolve()
+            cache_dir = _safe_bucket_cache_dir(cache_root, bucket_name)
             cache_dir.mkdir(parents=True, exist_ok=True)
 
             # Preserve subdirectory structure
-            sub_path = Path(file_key)
-            local_path = cache_dir / sub_path
+            local_path = _safe_file_key_path(cache_dir, file_key)
             local_path.parent.mkdir(parents=True, exist_ok=True)
 
             api = get_b2_api()
@@ -502,8 +556,8 @@ class OpenHandler(B2BaseHandler):
             downloaded = bucket.download_file_by_name(file_key)
             downloaded.save_to(str(local_path))
 
-            # Return path relative to Jupyter root
-            rel_path = str(local_path)
+            # Return path relative to Jupyter root for docmanager:open.
+            rel_path = local_path.relative_to(Path.cwd().resolve()).as_posix()
 
             self.success(
                 data={
@@ -512,8 +566,10 @@ class OpenHandler(B2BaseHandler):
                     "size": local_path.stat().st_size,
                 }
             )
+        except (OSError, TypeError, ValueError):
+            self.error("B2 file path is outside the allowed cache directory", status=400)
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class CreateBucketHandler(B2BaseHandler):
@@ -545,7 +601,7 @@ class CreateBucketHandler(B2BaseHandler):
                 }
             )
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class UploadBytesHandler(B2BaseHandler):
@@ -588,7 +644,7 @@ class UploadBytesHandler(B2BaseHandler):
                 }
             )
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class RenameHandler(B2BaseHandler):
@@ -638,7 +694,7 @@ class RenameHandler(B2BaseHandler):
                 }
             )
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
 
 
 class DeleteBucketHandler(B2BaseHandler):
@@ -664,4 +720,4 @@ class DeleteBucketHandler(B2BaseHandler):
             api.delete_bucket(bucket)
             self.success(message=f"Deleted bucket '{name}'")
         except Exception as e:
-            self.error(str(e))
+            self.exception(e)
